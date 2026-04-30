@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api.routes import api_router
 from app.core.config import settings
 from app.db.init_db import init_db
+from app.ui import repo_onboarding_page
 from app.utils.logging import configure_logging
 
 
@@ -25,5 +26,5 @@ app.include_router(api_router, prefix=settings.api_prefix)
 
 
 @app.get("/")
-def root() -> dict[str, str]:
-    return {"name": settings.app_name, "version": settings.app_version}
+def root():
+    return repo_onboarding_page()
