@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -26,6 +26,7 @@ class Repository(Base):
         uselist=False,
     )
     runs: Mapped[list["PipelineRun"]] = relationship(back_populates="repository")
+    issues: Mapped[list["RepositoryIssue"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
 
 
 class RepositoryConfig(Base):
@@ -61,6 +62,28 @@ class PipelineRun(Base):
 
     repository: Mapped[Repository | None] = relationship(back_populates="runs")
     logs: Mapped[list["LogEvent"]] = relationship(back_populates="run", cascade="all, delete-orphan")
+
+
+class RepositoryIssue(Base):
+    __tablename__ = "repository_issues"
+    __table_args__ = (UniqueConstraint("repository_id", "number", name="uq_repository_issue_number"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id"), index=True)
+    number: Mapped[int] = mapped_column(Integer, index=True)
+    title: Mapped[str] = mapped_column(Text)
+    html_url: Mapped[str] = mapped_column(String(1000))
+    state: Mapped[str] = mapped_column(String(50), default="open")
+    labels: Mapped[list[str]] = mapped_column(JSON, default=list)
+    is_assigned: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_pull_request: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
+    rejection_reasons: Mapped[list[str]] = mapped_column(JSON, default=list)
+    github_created_at: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    github_updated_at: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    repository: Mapped[Repository] = relationship(back_populates="issues")
 
 
 class LogEvent(Base):

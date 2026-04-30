@@ -1,12 +1,21 @@
 from fastapi import HTTPException
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.github.issues import IssueClient
-from app.models.db_models import Repository, RepositoryConfig
-from app.models.schemas import IssueFilter, RepositoryCreate, RepositoryOut, RepositoryUpdate
+from app.models.db_models import Repository, RepositoryConfig, RepositoryIssue
+from app.models.schemas import (
+    IssueFetchResult,
+    IssueFilter,
+    RepositoryCreate,
+    RepositoryIssueOut,
+    RepositoryOut,
+    RepositoryUpdate,
+)
 from app.repo.manager import RepoManager
 from app.utils.repo_url import derive_owner_name, normalize_repo_url
+
+ALLOWED_ISSUE_LABELS = {"good first issue", "help wanted", "bug", "documentation"}
 
 
 class RepoService:
@@ -76,11 +85,105 @@ class RepoService:
         return RepositoryOut.model_validate(repository)
 
     def fetch_candidate_issues(self, payload: IssueFilter) -> list[dict[str, object]]:
-        return self.issues.list_candidate_issues(
-            owner=payload.owner,
-            repo=payload.repo,
-            labels=payload.labels,
-            max_items=payload.max_items,
+        return self.issues.list_repo_issues(owner=payload.owner, repo=payload.repo, max_items=payload.max_items)
+
+    def fetch_repository_issues(self, repository_id: int, max_items: int = 100) -> IssueFetchResult:
+        repository = self._get_model(repository_id)
+        raw_issues = self.issues.list_repo_issues(repository.owner, repository.name, max_items=max_items)
+        existing_numbers = set(
+            self.db.scalars(select(RepositoryIssue.number).where(RepositoryIssue.repository_id == repository.id))
+        )
+
+        stored = 0
+        skipped_existing = 0
+        for raw_issue in raw_issues:
+            number = int(raw_issue["number"])
+            if number in existing_numbers:
+                skipped_existing += 1
+                continue
+            issue = self._build_issue(repository.id, raw_issue)
+            self.db.add(issue)
+            existing_numbers.add(number)
+            stored += 1
+
+        self.db.commit()
+        return self._issue_fetch_result(
+            repository_id=repository.id,
+            fetched=len(raw_issues),
+            stored=stored,
+            skipped_existing=skipped_existing,
+        )
+
+    def list_repository_issues(self, repository_id: int, eligible_only: bool = False) -> list[RepositoryIssueOut]:
+        self._get_model(repository_id)
+        stmt = (
+            select(RepositoryIssue)
+            .where(RepositoryIssue.repository_id == repository_id)
+            .order_by(RepositoryIssue.is_eligible.desc(), RepositoryIssue.number.asc())
+        )
+        if eligible_only:
+            stmt = stmt.where(RepositoryIssue.is_eligible.is_(True))
+        return [RepositoryIssueOut.model_validate(issue) for issue in self.db.scalars(stmt).all()]
+
+    def _build_issue(self, repository_id: int, raw_issue: dict[str, object]) -> RepositoryIssue:
+        labels = [
+            str(label.get("name", "")).strip()
+            for label in raw_issue.get("labels", [])
+            if isinstance(label, dict) and label.get("name")
+        ]
+        rejection_reasons = self._rejection_reasons(raw_issue, labels)
+        return RepositoryIssue(
+            repository_id=repository_id,
+            number=int(raw_issue["number"]),
+            title=str(raw_issue.get("title") or ""),
+            html_url=str(raw_issue.get("html_url") or ""),
+            state=str(raw_issue.get("state") or ""),
+            labels=labels,
+            is_assigned=bool(raw_issue.get("assignee") or raw_issue.get("assignees")),
+            is_pull_request="pull_request" in raw_issue,
+            is_eligible=not rejection_reasons,
+            rejection_reasons=rejection_reasons,
+            github_created_at=raw_issue.get("created_at"),
+            github_updated_at=raw_issue.get("updated_at"),
+        )
+
+    def _rejection_reasons(self, raw_issue: dict[str, object], labels: list[str]) -> list[str]:
+        reasons: list[str] = []
+        if raw_issue.get("state") != "open":
+            reasons.append("closed")
+        if "pull_request" in raw_issue:
+            reasons.append("pull_request")
+        if raw_issue.get("assignee") or raw_issue.get("assignees"):
+            reasons.append("assigned")
+        if not {label.lower() for label in labels}.intersection(ALLOWED_ISSUE_LABELS):
+            reasons.append("missing_allowed_label")
+        return reasons
+
+    def _issue_fetch_result(
+        self,
+        repository_id: int,
+        fetched: int,
+        stored: int,
+        skipped_existing: int,
+    ) -> IssueFetchResult:
+        total_stored = int(
+            self.db.scalar(select(func.count()).select_from(RepositoryIssue).where(RepositoryIssue.repository_id == repository_id))
+            or 0
+        )
+        eligible_stored = int(
+            self.db.scalar(
+                select(func.count())
+                .select_from(RepositoryIssue)
+                .where(RepositoryIssue.repository_id == repository_id, RepositoryIssue.is_eligible.is_(True))
+            )
+            or 0
+        )
+        return IssueFetchResult(
+            fetched=fetched,
+            stored=stored,
+            skipped_existing=skipped_existing,
+            total_stored=total_stored,
+            eligible_stored=eligible_stored,
         )
 
     def _get_model(self, repository_id: int) -> Repository:

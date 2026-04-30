@@ -77,6 +77,33 @@ class IssueFilter(BaseModel):
     max_items: int = 20
 
 
+class RepositoryIssueOut(BaseModel):
+    id: int
+    repository_id: int
+    number: int
+    title: str
+    html_url: str
+    state: str
+    labels: list[str]
+    is_assigned: bool
+    is_pull_request: bool
+    is_eligible: bool
+    rejection_reasons: list[str]
+    github_created_at: str | None = None
+    github_updated_at: str | None = None
+    fetched_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class IssueFetchResult(BaseModel):
+    fetched: int
+    stored: int
+    skipped_existing: int
+    total_stored: int
+    eligible_stored: int
+
+
 class PipelineRunCreate(BaseModel):
     repository_id: int | None = None
     issue_number: int | None = None

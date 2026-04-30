@@ -12,13 +12,13 @@ This repository is currently in recovery mode. The backend is intentionally mini
 - Repository metadata CRUD
 - Minimal repository onboarding UI
 - Basic repo onboarding that clones a repository into `workspace/repos`
+- GitHub issue fetch and V1 eligibility filtering
 - Queued pipeline run records
 - Metrics summary
 - Stop/clear control switch
 
 ## What Is Stubbed
 
-- GitHub issue fetching
 - Repository scanning
 - Codex execution
 - Validation command execution
@@ -47,6 +47,7 @@ http://127.0.0.1:8000/docs
 ```
 
 The root page is a small development UI for adding repositories, listing them, and toggling enabled/disabled status.
+Set `GITHUB_TOKEN` in `.env` before using the issue fetch button. The V1 issue policy stores fetched issues, skips already stored issues, and marks issues eligible only when they are open, unassigned, not pull requests, and have at least one allowed label.
 
 ## Useful Endpoints
 
@@ -59,5 +60,8 @@ POST /api/v1/repos
 POST /api/v1/repos/onboard
 POST /api/v1/repos/{repository_id}/enable
 POST /api/v1/repos/{repository_id}/disable
+POST /api/v1/repos/{repository_id}/issues/fetch
+GET  /api/v1/repos/{repository_id}/issues
+GET  /api/v1/repos/{repository_id}/issues/eligible
 POST /api/v1/runs
 ```

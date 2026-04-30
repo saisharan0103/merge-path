@@ -2,7 +2,14 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.schemas import IssueFilter, RepositoryCreate, RepositoryOut, RepositoryUpdate
+from app.models.schemas import (
+    IssueFetchResult,
+    IssueFilter,
+    RepositoryCreate,
+    RepositoryIssueOut,
+    RepositoryOut,
+    RepositoryUpdate,
+)
 from app.services.repo_service import RepoService
 
 router = APIRouter()
@@ -45,6 +52,21 @@ def enable_repository(repository_id: int, db: Session = Depends(get_db)) -> Repo
 @router.post("/{repository_id}/disable", response_model=RepositoryOut)
 def disable_repository(repository_id: int, db: Session = Depends(get_db)) -> RepositoryOut:
     return RepoService(db).set_enabled(repository_id, False)
+
+
+@router.post("/{repository_id}/issues/fetch", response_model=IssueFetchResult)
+def fetch_repository_issues(repository_id: int, db: Session = Depends(get_db)) -> IssueFetchResult:
+    return RepoService(db).fetch_repository_issues(repository_id)
+
+
+@router.get("/{repository_id}/issues", response_model=list[RepositoryIssueOut])
+def list_repository_issues(repository_id: int, db: Session = Depends(get_db)) -> list[RepositoryIssueOut]:
+    return RepoService(db).list_repository_issues(repository_id)
+
+
+@router.get("/{repository_id}/issues/eligible", response_model=list[RepositoryIssueOut])
+def list_eligible_repository_issues(repository_id: int, db: Session = Depends(get_db)) -> list[RepositoryIssueOut]:
+    return RepoService(db).list_repository_issues(repository_id, eligible_only=True)
 
 
 @router.post("/issues")
