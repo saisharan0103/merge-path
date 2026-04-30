@@ -1,0 +1,33 @@
+ANSWERS FOR CLAUDE CODE QUESTIONS AND ALOS PRESENT IN THE CLAUDE CHAT : https://claude.ai/share/e4af6f78-6566-44cb-921c-f95ae7257b97
+
+
+1. SQLlite 
+2. async as the mian 
+3. 
+
+
+
+current labels re not good and coorect and i prefer your fildter only accoring to the docs 
+
+
+
+6. Auth → Defer. Single-user local — seed one user, hardcode a dev token. Real JWT in phase 8 if ever shipped.
+
+
+
+we will nevr shi this , please even if it present in any other docs remove that thing this is only for my use and no need of auth  , just the direct home page /whatever 
+
+
+
+Frontend → Rip out app/ui.py now. Don't maintain two UIs. Backend serves API only until web/ exists.
+
+
+
+yes keep one frontned whatevr wherever that is there
+
+
+
+and i dont now which lange we are using urrently for this , answer me this question ( claude ) 
+
+
+

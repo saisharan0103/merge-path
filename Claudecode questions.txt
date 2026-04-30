@@ -1,0 +1,77 @@
+I've read everything. The docs are dense and consistent. Before any code changes, here are the questions I need cleared up — they're real ambiguities or conflicts between the spec and what already exists in the repo.
+
+Conflicts between spec and existing code
+These need a decision; they're not optional.
+
+1. Database: SQLite (current) vs Postgres (spec).
+Spec says Postgres 15+. Current code uses SQLite (sqlite:///./data/patchpilot.db) and inits via init_db() at startup. Alembic isn't set up. Before phase-1 changes:
+
+Stay on SQLite for local dev and treat Postgres as production-only?
+Or switch fully to Postgres now, add Alembic, regenerate migrations from scratch? I'd recommend switch now — the spec relies on JSONB/advisory locks which SQLite can't do, and the existing init_db.create_all will collide with Alembic anyway. Confirm.
+2. Async vs sync SQLAlchemy.
+Spec says "async everywhere on backend." Current code is fully sync (Session = Depends(get_db)). Switching mid-build is annoying. Pick one:
+
+Migrate to async now (one-time pain, matches spec)
+Stay sync, update spec I'd recommend migrate to async now, before more sync-style services are written.
+3. Existing RepositoryConfig table.
+Current schema has RepositoryConfig (per-repo allowed_labels, max_files_changed, auto_pr_enabled, etc.). Spec doesn't have this table — it uses contribution_rules (multi-scope rule store) and settings_kv instead. Drop RepositoryConfig and migrate its semantics into contribution_rules + repositories.paused?
+
+4. Repo onboarding: single URL today, two URLs in spec.
+Current POST /repos takes one repo_url. Spec requires both upstream_url + fork_url and verifies fork→upstream via GitHub API. The DB schema needs to change (drop repo_url, add upstream_/fork_ columns). Confirm we're moving to the two-URL model now and breaking the existing endpoint.
+
+5. Issue eligibility model.
+Current RepositoryIssue does basic label-allowlist filtering with hardcoded {good first issue, help wanted, bug, documentation}. Spec has a much richer scoring model (0–100 score, breakdown, reproducibility_confidence, etc.). Discard the current basic filter and replace, or keep it as the "hard filter" gate that runs before scoring?
+
+6. Auth.
+Spec is JWT + bearer token. Current app has zero auth. Build auth in phase 1 (per spec build order), or defer until later phases since this is single-user local-first?
+
+Underspecified / decisions I'd make but want to confirm
+7. Frontend.
+The repo has a server-rendered HTML page in app/ui.py. Spec calls for Next.js + React + TypeScript + Tailwind in web/. Are we starting web/ from scratch in phase 7, and keeping the HTML stub working in the meantime, or rip out app/ui.py now?
+
+8. Codex CLI flags.
+The spec acknowledges the actual flag set "depends on the Codex CLI version installed" and only _build_command() should change. Do you have the Codex CLI installed locally, and what version? I'd like to validate the assumed codex exec --cwd ... --prompt-file ... --non-interactive --max-loc N --scope FILE syntax against the real binary before building around it. If it doesn't exist, we stub CodexRunner behind a fake-mode env flag.
+
+9. "Local dev" means single-user without a JWT login.
+The spec assumes JWT, but PRD says "single-user, self-hosted." Acceptable to ship with a single fixed user seeded at startup and a dev-mode bypass for Authorization header (DEV_AUTO_LOGIN=true)?
+
+10. Where does the user's PAT live?
+Spec stores it encrypted in users.github_pat_encrypted and sets via PUT /settings/pat. Current code reads GITHUB_TOKEN from env. For local dev we'd keep env as a fallback when DB has no PAT?
+
+11. Health scorer signal sources.
+The 9 health signals (commit recency, open PR count, median review hours, CI pass rate, etc.) all need GitHub API queries — some not in PyGithub directly (e.g. external_merge_rate requires per-PR author lookup). Are we OK with this being slow and aggressive about caching, or do you want a "compute lightweight 4 signals first, defer the slow 5 to a follow-up scan"?
+
+12. Reproduction engine.
+Spec mentions confidence ≥ 0.7 but doesn't define the math. How is reproducibility_confidence actually computed? "Reproduction matches stack trace (0.5) + crashing line found in repo (0.2) + 5 reruns succeed (0.3)"? I'll need to invent a formula — confirm I should, and you'll review.
+
+13. No-brainer scanner detection types.
+Acceptance criteria list these: missing_env_docs, broken_link, missing_test_command, missing_prerequisites, no_windows_notes, no_troubleshooting, broken_readme_command. Each needs a detection rule. Are heuristic rules OK, or do you want each one routed through Codex/LLM for nuance? Heuristic is faster + free; LLM is more accurate.
+
+14. PR pattern analyzer.
+"Last 20–40 merged PRs of upstream" — fetched, analyzed for avg_files_changed, pct_with_tests, title_pattern. Title pattern detection ("fix(<scope>): ..." vs "[area] desc") is regex-classification — ok to start with 4 hardcoded patterns and fall back to "plain"?
+
+15. Sandbox isolation in dev.
+Spec says subprocess + timeout in dev, Docker in prod. For v1 single-user local, we run everything in plain subprocess inside the user's machine — confirmed no Docker needed yet?
+
+16. Working directory layout.
+Current: workspace/repos/<owner>-<name>. Spec: $WORKDIR/repos/<repo_id>/<run_id>/. The spec layout isolates per-run (so concurrent runs don't collide) but means re-cloning per run. Do we keep one clone per repo (faster, current behavior) or one clone per run (safer, spec)? I'd lean per-repo with a lock, but spec says per-run.
+
+17. Celery + Redis.
+The current PipelineOrchestrator is sync and just records queued runs. Adding Celery and Redis is a real install on Windows (no native Redis). Are you OK with Redis-via-Docker for local dev, or do you want me to evaluate alternatives (e.g. ARQ, fastapi-utils background tasks) before committing to Celery?
+
+18. Build order — what do you actually want first?
+Spec lays out 8 phases. Where do you want me to start? My recommendation is:
+
+Phase 1a: Stack alignment (Postgres, async SQLAlchemy, Alembic, two-URL repo model, fork verification). No new features, just realign the foundation. Get tests passing.
+Phase 1b: Auth + settings + PAT storage.
+Phase 2+: Per spec.
+If you want to skip 1a and just bolt new features on top of the existing SQLite/sync code, that works but the gap will only get worse.
+
+Things I noticed but don't need to ask about
+The spec mentions web/ and Next.js but the repo has app/ui.py. I'll plan to add web/ in phase 7 and keep app/ui.py working as a fallback dev page.
+requirements.txt exists but spec says Poetry. I'll switch to Poetry as part of phase-1a alignment.
+The build_docs in files/ aren't yet at build_docs/ (the canonical path the CLAUDE.md references). I'll move them in once you confirm.
+My ask: can you answer #1, #2, #4, #8, #17, #18 explicitly? The rest I can make a call on if you don't have a strong opinion. Once those six are decided, I have a clean path to start.
+
+
+answers 
