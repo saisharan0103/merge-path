@@ -1,18 +1,22 @@
+from datetime import datetime
+
 from fastapi import HTTPException
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.github.issues import IssueClient
-from app.models.db_models import Repository, RepositoryConfig, RepositoryIssue
+from app.models.db_models import Repository, RepositoryConfig, RepositoryIssue, RepositoryScan
 from app.models.schemas import (
     IssueFetchResult,
     IssueFilter,
     RepositoryCreate,
     RepositoryIssueOut,
     RepositoryOut,
+    RepositoryScanOut,
     RepositoryUpdate,
 )
 from app.repo.manager import RepoManager
+from app.repo.scanner import RepoScanner
 from app.utils.repo_url import derive_owner_name, normalize_repo_url
 
 ALLOWED_ISSUE_LABELS = {"good first issue", "help wanted", "bug", "documentation"}
@@ -23,6 +27,7 @@ class RepoService:
         self.db = db
         self.issues = IssueClient()
         self.manager = RepoManager()
+        self.scanner = RepoScanner()
 
     def create(self, payload: RepositoryCreate) -> RepositoryOut:
         repo_url = normalize_repo_url(str(payload.repo_url))
@@ -83,6 +88,35 @@ class RepoService:
         self.db.commit()
         self.db.refresh(repository)
         return RepositoryOut.model_validate(repository)
+
+    def clone_and_scan(self, repository_id: int) -> RepositoryScanOut:
+        repository = self._get_model(repository_id)
+        try:
+            repo_path = self.manager.clone_or_update(repository.repo_url)
+        except RuntimeError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
+        repository.local_path = str(repo_path)
+        scan_data = self.scanner.scan(repo_path)
+        scan = self.db.scalar(select(RepositoryScan).where(RepositoryScan.repository_id == repository.id))
+        if scan is None:
+            scan = RepositoryScan(repository_id=repository.id, **scan_data)
+            self.db.add(scan)
+        else:
+            for key, value in scan_data.items():
+                setattr(scan, key, value)
+            scan.last_scanned_at = datetime.utcnow()
+
+        self.db.commit()
+        self.db.refresh(scan)
+        return RepositoryScanOut.model_validate(scan)
+
+    def get_scan(self, repository_id: int) -> RepositoryScanOut:
+        self._get_model(repository_id)
+        scan = self.db.scalar(select(RepositoryScan).where(RepositoryScan.repository_id == repository_id))
+        if scan is None:
+            raise HTTPException(status_code=404, detail="Repository scan not found")
+        return RepositoryScanOut.model_validate(scan)
 
     def fetch_candidate_issues(self, payload: IssueFilter) -> list[dict[str, object]]:
         return self.issues.list_repo_issues(owner=payload.owner, repo=payload.repo, max_items=payload.max_items)

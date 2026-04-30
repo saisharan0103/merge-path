@@ -12,6 +12,7 @@ This repository is currently in recovery mode. The backend is intentionally mini
 - Repository metadata CRUD
 - Minimal repository onboarding UI
 - Basic repo onboarding that clones a repository into `workspace/repos`
+- Repo clone/update and heuristic structure scanning
 - GitHub issue fetch and V1 eligibility filtering
 - Queued pipeline run records
 - Metrics summary
@@ -36,8 +37,11 @@ Copy-Item .env.example .env
 ## Run
 
 ```powershell
+cd C:\Users\Queso\Downloads\Mergepath
 uvicorn app.main:app --reload
 ```
+
+Run Uvicorn from the repository root, not from inside `app\`. If your prompt shows `Mergepath\app>`, run `cd ..` first.
 
 Open:
 
@@ -47,6 +51,7 @@ http://127.0.0.1:8000/docs
 ```
 
 The root page is a small development UI for adding repositories, listing them, and toggling enabled/disabled status.
+Use `Clone/Scan` to clone or update a repo under `workspace/repos`, then show local path, likely stack, package manager, config presence, contribution docs, important files, and last scan time.
 Set `GITHUB_TOKEN` in `.env` before using the issue fetch button. The V1 issue policy stores fetched issues, skips already stored issues, and marks issues eligible only when they are open, unassigned, not pull requests, and have at least one allowed label.
 
 ## Useful Endpoints
@@ -60,6 +65,8 @@ POST /api/v1/repos
 POST /api/v1/repos/onboard
 POST /api/v1/repos/{repository_id}/enable
 POST /api/v1/repos/{repository_id}/disable
+POST /api/v1/repos/{repository_id}/scan
+GET  /api/v1/repos/{repository_id}/scan
 POST /api/v1/repos/{repository_id}/issues/fetch
 GET  /api/v1/repos/{repository_id}/issues
 GET  /api/v1/repos/{repository_id}/issues/eligible

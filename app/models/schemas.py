@@ -104,6 +104,23 @@ class IssueFetchResult(BaseModel):
     eligible_stored: int
 
 
+class RepositoryScanOut(BaseModel):
+    id: int
+    repository_id: int
+    local_path: str
+    is_cloned: bool
+    tech_stack: list[str]
+    package_manager: str | None
+    has_test_config: bool
+    has_lint_config: bool
+    has_build_config: bool
+    contribution_docs: list[str]
+    important_files: list[str]
+    last_scanned_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PipelineRunCreate(BaseModel):
     repository_id: int | None = None
     issue_number: int | None = None

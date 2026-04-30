@@ -13,8 +13,9 @@ def repo_onboarding_page() -> HTMLResponse:
   <style>
     :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; background: #f6f7f9; color: #20242a; }
     body { margin: 0; padding: 32px; }
-    main { max-width: 1120px; margin: 0 auto; }
+    main { max-width: 1180px; margin: 0 auto; }
     h1 { margin: 0 0 8px; font-size: 28px; }
+    h2 { margin: 0 0 8px; font-size: 20px; }
     p { margin: 0 0 24px; color: #5d6673; }
     form { display: flex; gap: 10px; margin-bottom: 18px; }
     input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #c8ced8; border-radius: 6px; font-size: 14px; }
@@ -26,24 +27,28 @@ def repo_onboarding_page() -> HTMLResponse:
     th { background: #eef2f7; color: #3f4752; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .status, .label { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-    .enabled, .eligible { background: #dff4e7; color: #11612d; }
-    .disabled, .not-eligible { background: #f1f2f4; color: #646b76; }
+    .enabled, .eligible, .yes { background: #dff4e7; color: #11612d; }
+    .disabled, .not-eligible, .no { background: #f1f2f4; color: #646b76; }
     .label { margin: 0 4px 4px 0; background: #e7efff; color: #244c9a; }
     .message { min-height: 22px; margin-bottom: 12px; color: #9a3412; font-size: 14px; }
     .empty { color: #747d8a; text-align: center; }
-    .issue-panel h2 { margin: 0 0 8px; font-size: 20px; }
-    .issue-panel p { margin-bottom: 12px; }
+    .panel { margin-top: 8px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; background: white; border: 1px solid #d9dee7; padding: 14px; margin-bottom: 22px; }
+    .summary-grid div { min-width: 0; }
+    .summary-grid strong { display: block; margin-bottom: 4px; color: #3f4752; font-size: 12px; text-transform: uppercase; }
+    .mono { font-family: Consolas, monospace; overflow-wrap: anywhere; }
     @media (max-width: 760px) {
       body { padding: 18px; }
       form { flex-direction: column; }
       table { display: block; overflow-x: auto; }
+      .summary-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <main>
     <h1>PatchPilot Repositories</h1>
-    <p>Add repositories, fetch GitHub issues, and review V1 eligibility.</p>
+    <p>Add repositories, clone and scan local code, fetch GitHub issues, and review V1 eligibility.</p>
 
     <form id="repo-form">
       <input id="repo-url" type="url" placeholder="https://github.com/owner/repo" required>
@@ -57,16 +62,22 @@ def repo_onboarding_page() -> HTMLResponse:
           <th>Owner</th>
           <th>Name</th>
           <th>Status</th>
+          <th>Scan</th>
           <th>Issues</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody id="repo-table">
-        <tr><td class="empty" colspan="5">Loading repositories...</td></tr>
+        <tr><td class="empty" colspan="6">Loading repositories...</td></tr>
       </tbody>
     </table>
 
-    <section class="issue-panel" id="issue-panel" hidden>
+    <section class="panel" id="scan-panel" hidden>
+      <h2 id="scan-title"></h2>
+      <div class="summary-grid" id="scan-summary"></div>
+    </section>
+
+    <section class="panel" id="issue-panel" hidden>
       <h2 id="issue-title"></h2>
       <p id="issue-summary"></p>
       <table>
@@ -90,6 +101,9 @@ def repo_onboarding_page() -> HTMLResponse:
     const input = document.querySelector("#repo-url");
     const addButton = document.querySelector("#add-button");
     const repoTable = document.querySelector("#repo-table");
+    const scanPanel = document.querySelector("#scan-panel");
+    const scanTitle = document.querySelector("#scan-title");
+    const scanSummary = document.querySelector("#scan-summary");
     const issuePanel = document.querySelector("#issue-panel");
     const issueTitle = document.querySelector("#issue-title");
     const issueSummary = document.querySelector("#issue-summary");
@@ -97,6 +111,7 @@ def repo_onboarding_page() -> HTMLResponse:
     const message = document.querySelector("#message");
     let repos = [];
     let issueCounts = {};
+    let scanCache = {};
 
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -124,21 +139,27 @@ def repo_onboarding_page() -> HTMLResponse:
 
     async function loadIssueCount(repoId) {
       const issues = await requestJson(`${apiBase}/${repoId}/issues`);
-      issueCounts[repoId] = {
-        total: issues.length,
-        eligible: issues.filter((issue) => issue.is_eligible).length
-      };
+      issueCounts[repoId] = {total: issues.length, eligible: issues.filter((issue) => issue.is_eligible).length};
     }
 
-    async function refreshCounts() {
-      await Promise.all(repos.map((repo) => loadIssueCount(repo.id).catch(() => {
-        issueCounts[repo.id] = {total: 0, eligible: 0};
-      })));
+    async function loadScan(repoId) {
+      try {
+        scanCache[repoId] = await requestJson(`${apiBase}/${repoId}/scan`);
+      } catch {
+        scanCache[repoId] = null;
+      }
+    }
+
+    async function refreshSummaries() {
+      await Promise.all(repos.map((repo) => Promise.all([
+        loadIssueCount(repo.id).catch(() => { issueCounts[repo.id] = {total: 0, eligible: 0}; }),
+        loadScan(repo.id)
+      ])));
     }
 
     function renderRepos() {
       if (!repos.length) {
-        repoTable.innerHTML = '<tr><td class="empty" colspan="5">No repositories yet.</td></tr>';
+        repoTable.innerHTML = '<tr><td class="empty" colspan="6">No repositories yet.</td></tr>';
         return;
       }
       repoTable.innerHTML = repos.map((repo) => {
@@ -147,17 +168,22 @@ def repo_onboarding_page() -> HTMLResponse:
         const action = repo.is_enabled ? "Disable" : "Enable";
         const endpoint = repo.is_enabled ? "disable" : "enable";
         const counts = issueCounts[repo.id] || {total: 0, eligible: 0};
+        const scan = scanCache[repo.id];
+        const scanText = scan ? `Scanned ${new Date(scan.last_scanned_at).toLocaleString()}` : "Not scanned";
         return `
           <tr>
             <td>${escapeHtml(repo.owner)}</td>
             <td>${escapeHtml(repo.name)}</td>
             <td><span class="status ${statusClass}">${statusText}</span></td>
+            <td>${escapeHtml(scanText)}</td>
             <td>${counts.total} stored, ${counts.eligible} eligible</td>
             <td>
               <div class="actions">
                 <button class="secondary" data-action="toggle" data-id="${repo.id}" data-endpoint="${endpoint}">${action}</button>
+                <button class="secondary" data-action="scan" data-id="${repo.id}">Clone/Scan</button>
+                <button class="secondary" data-action="view-scan" data-id="${repo.id}">View scan</button>
                 <button class="secondary" data-action="fetch" data-id="${repo.id}">Fetch issues</button>
-                <button class="secondary" data-action="view" data-id="${repo.id}">View issues</button>
+                <button class="secondary" data-action="view-issues" data-id="${repo.id}">View issues</button>
               </div>
             </td>
           </tr>
@@ -165,18 +191,41 @@ def repo_onboarding_page() -> HTMLResponse:
       }).join("");
     }
 
+    function joinList(values) {
+      return values && values.length ? values.map(escapeHtml).join(", ") : "None";
+    }
+
+    function boolPill(value) {
+      return `<span class="status ${value ? "yes" : "no"}">${value ? "Yes" : "No"}</span>`;
+    }
+
+    function renderScan(repo, scan) {
+      scanPanel.hidden = false;
+      scanTitle.textContent = `${repo.owner}/${repo.name} scan`;
+      scanSummary.innerHTML = `
+        <div><strong>Local path</strong><span class="mono">${escapeHtml(scan.local_path)}</span></div>
+        <div><strong>Cloned</strong>${boolPill(scan.is_cloned)}</div>
+        <div><strong>Tech stack</strong>${joinList(scan.tech_stack)}</div>
+        <div><strong>Package manager</strong>${escapeHtml(scan.package_manager || "Unknown")}</div>
+        <div><strong>Test config</strong>${boolPill(scan.has_test_config)}</div>
+        <div><strong>Lint config</strong>${boolPill(scan.has_lint_config)}</div>
+        <div><strong>Build config</strong>${boolPill(scan.has_build_config)}</div>
+        <div><strong>Last scan</strong>${escapeHtml(new Date(scan.last_scanned_at).toLocaleString())}</div>
+        <div><strong>Contribution docs</strong>${joinList(scan.contribution_docs)}</div>
+        <div><strong>Important files</strong>${joinList(scan.important_files)}</div>
+      `;
+    }
+
     function renderIssues(repo, issues) {
       issuePanel.hidden = false;
-      issueTitle.textContent = `${repo.owner}/${repo.name}`;
+      issueTitle.textContent = `${repo.owner}/${repo.name} issues`;
       issueSummary.textContent = `${issues.length} stored issues, ${issues.filter((issue) => issue.is_eligible).length} eligible.`;
       if (!issues.length) {
         issueTable.innerHTML = '<tr><td class="empty" colspan="5">No stored issues yet.</td></tr>';
         return;
       }
       issueTable.innerHTML = issues.map((issue) => {
-        const labels = issue.labels.length
-          ? issue.labels.map((label) => `<span class="label">${escapeHtml(label)}</span>`).join("")
-          : "None";
+        const labels = issue.labels.length ? issue.labels.map((label) => `<span class="label">${escapeHtml(label)}</span>`).join("") : "None";
         const eligibleText = issue.is_eligible ? "Eligible" : `Not eligible: ${issue.rejection_reasons.join(", ")}`;
         const eligibleClass = issue.is_eligible ? "eligible" : "not-eligible";
         return `
@@ -193,7 +242,16 @@ def repo_onboarding_page() -> HTMLResponse:
 
     async function loadRepos() {
       repos = await requestJson(apiBase);
-      await refreshCounts();
+      await refreshSummaries();
+      renderRepos();
+    }
+
+    async function viewScan(repoId) {
+      const repo = repos.find((item) => item.id === repoId);
+      if (!repo) return;
+      const scan = await requestJson(`${apiBase}/${repoId}/scan`);
+      scanCache[repoId] = scan;
+      renderScan(repo, scan);
       renderRepos();
     }
 
@@ -233,13 +291,23 @@ def repo_onboarding_page() -> HTMLResponse:
           await requestJson(`${apiBase}/${repoId}/${button.dataset.endpoint}`, {method: "POST"});
           await loadRepos();
         }
+        if (button.dataset.action === "scan") {
+          const scan = await requestJson(`${apiBase}/${repoId}/scan`, {method: "POST"});
+          scanCache[repoId] = scan;
+          setMessage("Repository cloned/updated and scanned.", false);
+          await loadRepos();
+          await viewScan(repoId);
+        }
+        if (button.dataset.action === "view-scan") {
+          await viewScan(repoId);
+        }
         if (button.dataset.action === "fetch") {
           const result = await requestJson(`${apiBase}/${repoId}/issues/fetch`, {method: "POST"});
           setMessage(`Fetched ${result.fetched}; stored ${result.stored}; skipped ${result.skipped_existing}.`, false);
           await loadRepos();
           await viewIssues(repoId);
         }
-        if (button.dataset.action === "view") {
+        if (button.dataset.action === "view-issues") {
           await viewIssues(repoId);
         }
       } catch (error) {

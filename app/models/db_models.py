@@ -27,6 +27,11 @@ class Repository(Base):
     )
     runs: Mapped[list["PipelineRun"]] = relationship(back_populates="repository")
     issues: Mapped[list["RepositoryIssue"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    scan: Mapped["RepositoryScan"] = relationship(
+        back_populates="repository",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
 
 class RepositoryConfig(Base):
@@ -84,6 +89,25 @@ class RepositoryIssue(Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     repository: Mapped[Repository] = relationship(back_populates="issues")
+
+
+class RepositoryScan(Base):
+    __tablename__ = "repository_scans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id"), unique=True, index=True)
+    local_path: Mapped[str] = mapped_column(String(1000))
+    is_cloned: Mapped[bool] = mapped_column(Boolean, default=False)
+    tech_stack: Mapped[list[str]] = mapped_column(JSON, default=list)
+    package_manager: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    has_test_config: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_lint_config: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_build_config: Mapped[bool] = mapped_column(Boolean, default=False)
+    contribution_docs: Mapped[list[str]] = mapped_column(JSON, default=list)
+    important_files: Mapped[list[str]] = mapped_column(JSON, default=list)
+    last_scanned_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    repository: Mapped[Repository] = relationship(back_populates="scan")
 
 
 class LogEvent(Base):

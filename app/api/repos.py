@@ -8,6 +8,7 @@ from app.models.schemas import (
     RepositoryCreate,
     RepositoryIssueOut,
     RepositoryOut,
+    RepositoryScanOut,
     RepositoryUpdate,
 )
 from app.services.repo_service import RepoService
@@ -52,6 +53,16 @@ def enable_repository(repository_id: int, db: Session = Depends(get_db)) -> Repo
 @router.post("/{repository_id}/disable", response_model=RepositoryOut)
 def disable_repository(repository_id: int, db: Session = Depends(get_db)) -> RepositoryOut:
     return RepoService(db).set_enabled(repository_id, False)
+
+
+@router.post("/{repository_id}/scan", response_model=RepositoryScanOut)
+def clone_and_scan_repository(repository_id: int, db: Session = Depends(get_db)) -> RepositoryScanOut:
+    return RepoService(db).clone_and_scan(repository_id)
+
+
+@router.get("/{repository_id}/scan", response_model=RepositoryScanOut)
+def get_repository_scan(repository_id: int, db: Session = Depends(get_db)) -> RepositoryScanOut:
+    return RepoService(db).get_scan(repository_id)
 
 
 @router.post("/{repository_id}/issues/fetch", response_model=IssueFetchResult)
