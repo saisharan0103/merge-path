@@ -1,6 +1,10 @@
 ANSWERS FOR CLAUDE CODE QUESTIONS AND ALOS PRESENT IN THE CLAUDE CHAT : https://claude.ai/share/e4af6f78-6566-44cb-921c-f95ae7257b97
 
 
+
+ for claude code 
+
+
 1. SQLlite 
 2. async as the mian 
 3. 
@@ -25,9 +29,41 @@ Frontend → Rip out app/ui.py now. Don't maintain two UIs. Backend serves API o
 
 yes keep one frontned whatevr wherever that is there
 
+ PAT storage → DB-first, env fallback. If users.github_pat_encrypted is null, read GITHUB_TOKEN env. Saving via UI overrides env. PAT storage → DB-first, env fallback. If users.github_pat_encrypted is null, read GITHUB_TOKEN env. Saving via UI overrides env. - i am okay with this anywat the pat will defubnately be in the env so ia   not that worried ojn thsi 
+
+11. Health scorer → Two-pass. Lightweight 4 signals (last commit, open PRs, recent merges, release count) on add → instant verdict. Slow 5 (median review, CI rate, external merge rate, response rate, active contributors) async in follow-up. Cache aggressively (24h TTL). okay for this 
+
+13. we need llm judghment on this
+
+14. PR pattern analyzer title detection → 4 hardcoded regex patterns + "plain" fallback. Good enough. - okay 
 
 
-and i dont now which lange we are using urrently for this , answer me this question ( claude ) 
+15. yes keep evrythign in local because this is used by onely me 
+
+16. Working directory → Per-repo clone with lock. Faster, simpler. Update spec. Concurrent runs on the same repo are rare anyway (you serialize per-repo for issue fixes). - ia m okayu wioth this 
+
+18. I believe in capabilty of claude codde so i dont thisk we need to do it p[ahse by pahse we just need ot give good prompto for that to do evrythgin and test evrythgin and all those thigns to amke the ful thign at once , i want to do this all at once and prove claude code can do evrythgin in one go and prove my friend wrong who said chat gpt codex s better thaqn claude do so give me gopod promtp for claude code inmcklding the pai test code testa dn the faTURE BUILDNGF ONES fially after asnwerrin thi aswhole qyestiosn 
 
 
+
+
+-----------------------------
+for claude 
+
+and i dont now which language we are using urrently for this , answer me this question ( claude ) 
+
+
+
+and actualli am not sure how we are gonhg to use codex clui what i need to install and how is the aspplication going ot leverge it i am nto sure explain me this by doing werb search abot how poepl use codex cli in thier own applications and also see thier developer docs 
+
+9. there is no dev mode and prod mode , this is going to be used by only me so need need of any authent9icatiuon 
+
+12. Reproduction confidence formula → You invent it. Starting point:
+0.4  if reproduction script exits with same error class as issue
+0.2  if stack trace file matches a real file in repo
+0.2  if 5/5 reruns reproduce
+0.1  if error message string-matches issue body
+0.1  if crashing line is in non-test source 
+
+i amn jnto sure abotu thsi 12th point i want you to atkew a good decison on it and alo explaoin me p[[roepr,ly what io this 
 

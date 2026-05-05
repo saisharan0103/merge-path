@@ -74,4 +74,5 @@ The build_docs in files/ aren't yet at build_docs/ (the canonical path the CLAUD
 My ask: can you answer #1, #2, #4, #8, #17, #18 explicitly? The rest I can make a call on if you don't have a strong opinion. Once those six are decided, I have a clean path to start.
 
 
+  
 answers 
