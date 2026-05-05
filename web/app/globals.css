@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  background: #FAF8F3;
+  color: #1A1A1A;
+  font-family: Inter, "IBM Plex Sans", system-ui, sans-serif;
+}
+
+h1, h2, h3, h4 {
+  font-family: "Source Serif Pro", Lora, Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+table { border-collapse: collapse; width: 100%; }
+th, td { border-bottom: 1px solid #D4CFC0; padding: 8px 12px; text-align: left; font-size: 14px; }
+th { font-weight: 600; color: #444; background: #f3efe6; }
+tbody tr:hover { background: rgba(212, 207, 192, 0.18); }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border: 1px solid #1A1A1A; background: #1A1A1A; color: #FAF8F3;
+  font-size: 13px; border-radius: 3px; cursor: pointer;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.secondary { background: #FAF8F3; color: #1A1A1A; }
+.btn.danger { background: #7C2D12; border-color: #7C2D12; color: #FAF8F3; }
+
+.input, .textarea {
+  width: 100%; border: 1px solid #D4CFC0; padding: 8px 10px; font-size: 14px;
+  background: white; border-radius: 3px;
+}
+.textarea { font-family: "JetBrains Mono", monospace; min-height: 110px; }
+
+.badge {
+  display: inline-block; padding: 2px 8px; border: 1px solid #D4CFC0;
+  border-radius: 999px; font-size: 11px; line-height: 16px; background: #fff;
+}
+.badge.green { border-color: #2D5016; color: #2D5016; }
+.badge.red   { border-color: #7C2D12; color: #7C2D12; }
+.badge.navy  { border-color: #1E3A8A; color: #1E3A8A; }
+.badge.gray  { border-color: #888; color: #444; }
+
+.card {
+  background: #fff; border: 1px solid #D4CFC0; padding: 16px; border-radius: 3px;
+}

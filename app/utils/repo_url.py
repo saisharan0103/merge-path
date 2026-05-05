@@ -1,14 +1,36 @@
-from urllib.parse import urlparse
+"""Parse + validate GitHub URLs."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+_GH_RE = re.compile(
+    r"^(?:https?://)?(?:www\.)?github\.com/(?P<owner>[A-Za-z0-9._-]+)/"
+    r"(?P<name>[A-Za-z0-9._-]+?)(?:\.git)?/?$"
+)
 
 
-def normalize_repo_url(repo_url: str) -> str:
-    return repo_url.strip().rstrip("/")
+@dataclass(frozen=True)
+class ParsedRepo:
+    owner: str
+    name: str
+    url: str
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.owner}/{self.name}"
 
 
-def derive_owner_name(repo_url: str) -> tuple[str | None, str | None]:
-    parsed = urlparse(repo_url)
-    path = parsed.path if parsed.scheme else repo_url
-    parts = [part for part in path.strip("/").split("/") if part]
-    if len(parts) < 2:
-        return None, None
-    return parts[-2], parts[-1].removesuffix(".git")
+def parse_github_url(url: str) -> ParsedRepo | None:
+    if not url:
+        return None
+    m = _GH_RE.match(url.strip())
+    if not m:
+        return None
+    owner = m.group("owner")
+    name = m.group("name")
+    if name.endswith(".git"):
+        name = name[:-4]
+    canonical = f"https://github.com/{owner}/{name}"
+    return ParsedRepo(owner=owner, name=name, url=canonical)

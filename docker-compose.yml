@@ -1,0 +1,11 @@
+# Local-only single-user app. Only Redis runs in Docker; backend + worker +
+# frontend run on the host so that the user's installed Codex CLI is available.
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped

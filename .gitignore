@@ -26,3 +26,18 @@ workspace/
 Thumbs.db
 .vscode/
 .idea/
+
+# Frontend
+node_modules/
+web/.next/
+web/out/
+web/coverage/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+htmlcov/
+.coverage
+coverage.xml
+
